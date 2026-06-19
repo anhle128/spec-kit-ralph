@@ -1,55 +1,48 @@
 schema_version: "1.0"
 
 extension:
-  id: "ralph"
-  name: "Ralph Loop"
-  version: "1.1.1"
-  description: "Autonomous implementation loop using AI agent CLI"
-  author: "Rubiss"
-  repository: "https://github.com/Rubiss-Projects/spec-kit-ralph"
+  id: "ralph-loop"
+  name: "Spec-Kit Ralph Loop"
+  version: "3.0.0"
+  description: "External-bash-loop driver around `claude --print` per snarktank/ralph; v3 schema groups tasks into per-phase batches (one batch processed per iteration). Bridges via /speckit-tasks-to-ralph and /speckit-ralph-sync-back."
+  author: "another-cowork"
   license: "MIT"
 
 requires:
   speckit_version: ">=0.1.0"
   tools:
-    - name: "copilot"
-      required: false
-    - name: "codex"
-      required: false
     - name: "git"
       required: true
+    - name: "jq"
+      required: true
+    - name: "claude"
+      required: true
+      reason: "Loop spawns `claude --print --dangerously-skip-permissions` per iteration."
 
 provides:
   commands:
-    - name: "speckit.ralph.run"
-      file: "commands/run.md"
-      description: "Run the ralph autonomous implementation loop"
-
-    - name: "speckit.ralph.iterate"
-      file: "commands/iterate.md"
-      description: "Execute a single ralph loop iteration (one work unit)"
+    - name: "speckit.tasks.to.ralph"
+      file: "commands/speckit-tasks-to-ralph.md"
+      description: "Convert tasks.md → prd.json + progress.txt for the external bash loop"
+    - name: "speckit.ralph.sync.back"
+      file: "commands/speckit-ralph-sync-back.md"
+      description: "Flip [X] in tasks.md from prd.json passes:true; archive run artifacts"
 
   config:
     - name: "ralph-config.yml"
       template: "ralph-config.template.yml"
-      description: "Ralph loop configuration (model, iterations, agent CLI)"
+      description: "Defaults for the external bash loop (max_iterations, sleep_seconds)"
       required: false
-
-hooks:
-  after_tasks:
-    command: "speckit.ralph.run"
-    optional: true
-    prompt: "Run ralph loop to implement tasks?"
-    description: "Start autonomous implementation after task generation"
 
 tags:
   - "implementation"
   - "automation"
   - "loop"
-  - "copilot"
-  - "codex"
+  - "external"
+  - "bash"
 
 defaults:
-  model: "claude-sonnet-4.6"
-  max_iterations: 10
-  agent_cli: "copilot"
+  max_iterations: 50
+  sleep_seconds: 2
+
+consent_required: true
