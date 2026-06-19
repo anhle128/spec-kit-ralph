@@ -234,5 +234,5 @@ Open a separate terminal and run:
 
   RALPH_I_UNDERSTAND_DANGEROUS=1 bash .specify/extensions/ralph-loop/ralph.sh --tool claude 50
 
-When ralph exits, run /speckit-ralph-sync-back $FEATURE to flip [X] in tasks.md.
+When ralph exits, run /speckit.ralph-loop.sync-back $FEATURE to flip [X] in tasks.md.
 EOF

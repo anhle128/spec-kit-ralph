@@ -1,233 +1,240 @@
-# Ralph Loop
+# Spec-Kit Ralph Loop
 
-Autonomous implementation loop for [spec-kit](https://github.com/github/spec-kit). Ralph repeatedly spawns a fresh AI agent that reads your `tasks.md`, implements the next work unit, commits the result, and loops until every task is done.
+`ralph-loop` is a Spec Kit extension that converts a feature's `tasks.md`
+into Ralph-style run artifacts, lets an external bash loop drive one agent
+iteration at a time, then syncs passed task IDs back into `tasks.md`.
 
-## Prerequisites
+The current extension exposes these Spec Kit commands:
 
-| Requirement | Why |
-|---|---|
-| [spec-kit](https://github.com/github/spec-kit) (`specify` CLI) | Extension host — provides project structure and task management |
-| [GitHub Copilot CLI](https://docs.github.com/en/copilot) or [OpenAI Codex CLI](https://developers.openai.com/codex/cli) | Agent CLI used to execute each iteration (`copilot` is the default) |
-| [Git](https://git-scm.com/) | Version control — Ralph commits completed work units automatically |
+- `/speckit.ralph-loop.tasks-to-ralph`
+- `/speckit.ralph-loop.sync-back`
 
-Your project must be initialized with `specify init` and have a feature branch checked out with a completed `tasks.md`.
-
-## Installation
-
-```bash
-specify extension add ralph
-```
-Or install from repository directly
-```bash
-specify extension add ralph --from https://github.com/Rubiss-Projects/spec-kit-ralph/archive/refs/tags/v1.0.2.zip
-```
-
-Verify the installation:
-
-```bash
-specify extension list
-# ✓ Ralph Loop (v1.0.2)
-#   Autonomous implementation loop using AI agent CLI
-#   Commands: 2 | Hooks: 1 | Status: Enabled
-```
-
-The installed extension includes `.specify/extensions/ralph/ralph-config.yml` for project defaults and registers the iterate command for your active agent. No post-install config copy step is required.
-
-## Usage
-
-### Path 1 — Agent Command
-
-Run inside an agent session that supports spec-kit extension commands:
-
-```
-/speckit.ralph.run
-```
-
-With options:
-
-```
-/speckit.ralph.run --max-iterations 5 --model gpt-5.1
-```
-
-The command validates prerequisites, detects the current feature context, and delegates to the platform-appropriate orchestrator script.
-
-### Path 2 — Direct Script Invocation
-
-Run the orchestrator scripts directly from your terminal for debugging or CI use.
-
-**PowerShell (Windows):**
-
-```powershell
-.specify/extensions/ralph/scripts/powershell/ralph-loop.ps1 `
-  -FeatureName "001-my-feature" `
-  -TasksPath "specs/001-my-feature/tasks.md" `
-  -SpecDir "specs/001-my-feature" `
-  -MaxIterations 10 `
-  -Model "claude-sonnet-4.6" `
-  -AgentCli "copilot"
-```
-
-**Bash (macOS / Linux):**
-
-```bash
-.specify/extensions/ralph/scripts/bash/ralph-loop.sh \
-  --feature-name "001-my-feature" \
-  --tasks-path "specs/001-my-feature/tasks.md" \
-  --spec-dir "specs/001-my-feature" \
-  --max-iterations 10 \
-  --model "claude-sonnet-4.6" \
-  --agent-cli "copilot"
-```
-
-## Configuration
-
-Edit `.specify/extensions/ralph/ralph-config.yml` to customize defaults:
-
-```yaml
-# AI model for agent iterations
-model: "claude-sonnet-4.6"
-
-# Maximum loop iterations before stopping
-max_iterations: 10
-
-# Path or name of the agent CLI binary
-# Supported: copilot, codex
-agent_cli: "copilot"
-```
-
-Ralph also ships `.specify/extensions/ralph/ralph-config.template.yml` as a reference copy of the defaults. Use it to compare or reset configuration; the active project config is `ralph-config.yml`.
-
-### Agent CLI Support
-
-Ralph supports CLI-specific invocation codepaths selected by `agent_cli`.
-
-| `agent_cli` | Invocation shape | Notes |
-|---|---|---|
-| `copilot` | `copilot --agent speckit.ralph.iterate -p ... --model ... --yolo -s` | Default path. Requires the installed `speckit.ralph.iterate` Copilot agent profile. |
-| `codex` | `codex exec --json --model ... --sandbox danger-full-access --cd ... -` | Uses Codex non-interactive mode and passes the existing `speckit.ralph.iterate` command text via stdin. |
-
-To use Codex:
-
-```yaml
-model: "gpt-5.3-codex"
-max_iterations: 10
-agent_cli: "codex"
-```
-
-Install and authenticate the Codex CLI first. Ralph does not store Codex API keys or ChatGPT credentials in its config.
-
-### Configuration Precedence
-
-Settings are resolved from lowest to highest priority:
-
-| Priority | Source | Example |
-|---|---|---|
-| 1 (lowest) | Extension defaults | Hardcoded in `extension.yml` |
-| 2 | Project config | `.specify/extensions/ralph/ralph-config.yml` |
-| 3 | Local overrides | `.specify/extensions/ralph/ralph-config.local.yml` (gitignored) |
-| 4 | Environment variables | `SPECKIT_RALPH_MODEL` |
-| 5 (highest) | CLI parameters | `--model`, `--max-iterations` |
-
-### Environment Variables
-
-| Variable | Description | Default |
-|---|---|---|
-| `SPECKIT_RALPH_MODEL` | AI model to use | `claude-sonnet-4.6` |
-| `SPECKIT_RALPH_MAX_ITERATIONS` | Maximum iterations before stopping | `10` |
-| `SPECKIT_RALPH_AGENT_CLI` | Agent CLI binary name or path | `copilot` |
-
-```bash
-export SPECKIT_RALPH_MODEL="gpt-5.3-codex"
-export SPECKIT_RALPH_MAX_ITERATIONS="20"
-export SPECKIT_RALPH_AGENT_CLI="codex"
-```
-
-> **Note:** Never store authentication tokens in the config file. Use `GH_TOKEN` or `GITHUB_TOKEN` environment variables for authentication.
-
-## How the Loop Works
-
-```
-┌─────────────────────────────────────────┐
-│           ralph-loop starts             │
-│  validate prerequisites, load config    │
-└──────────────────┬──────────────────────┘
-                   ▼
-          ┌────────────────┐
-          │ Any tasks left?│──No──▶ exit 0 (COMPLETED)
-          └───────┬────────┘
-                  │ Yes
-                  ▼
-  ┌───────────────────────────────┐
-  │  Spawn fresh agent process    │
-  │  configured agent CLI runs    │
-  └──────────────┬────────────────┘
-                 ▼
-  ┌───────────────────────────────┐
-  │  Agent reads tasks.md +       │
-  │  progress.md, implements      │
-  │  ONE work unit, commits       │
-  └──────────────┬────────────────┘
-                 ▼
-       ┌──────────────────┐
-       │ Check termination│
-       │   conditions     │
-       └────────┬─────────┘
-                ▼
-        back to "Any tasks left?"
-```
-
-### Iteration Cycle
-
-1. The orchestrator spawns a **fresh** configured agent CLI process each iteration.
-2. The agent reads `tasks.md` to find the first incomplete work unit (phase, user story, or task group).
-3. It implements tasks within that single work unit, marks them `[x]` in `tasks.md`, and commits on completion.
-4. It appends an iteration entry to `progress.md` with files changed and lessons learned.
-5. Control returns to the orchestrator, which checks termination conditions and loops.
-
-### Termination Conditions
-
-| Condition | Exit Code | Meaning |
-|---|---|---|
-| All tasks in `tasks.md` marked `[x]` | `0` | Success — nothing left to do |
-| Agent outputs `<promise>COMPLETE</promise>` | `0` | Agent confirmed all work is done |
-| Max iterations reached | `1` | Safety limit — increase `max_iterations` if needed |
-| 3 consecutive failures | `1` | Circuit breaker — agent is stuck |
-| Ctrl+C | `130` | User interrupted the loop |
-
-## Resuming After Interruption
-
-Ralph is designed to be interrupted and resumed safely. Each iteration is self-contained: tasks are marked `[x]` in `tasks.md` and progress is logged in `progress.md` as work completes.
-
-To resume, simply re-run the command:
-
-```
-/speckit.ralph.run
-```
-
-Or re-run the script directly. The orchestrator reads the current checkbox state in `tasks.md` and skips completed tasks. The `progress.md` log gives the agent context from prior iterations.
-
-## Extension Structure
+## What This Project Contains
 
 ```
 spec-kit-ralph/
-├── extension.yml                  # Extension manifest (schema v1.0)
-├── commands/
-│   ├── run.md                     # speckit.ralph.run — thin launcher
-│   └── iterate.md                 # speckit.ralph.iterate — single iteration
-├── scripts/
-│   ├── powershell/
-│   │   └── ralph-loop.ps1         # PowerShell orchestrator
-│   └── bash/
-│       └── ralph-loop.sh          # Bash orchestrator
-├── agents/
-│   └── speckit.ralph.agent.md     # Copilot agent profile
-├── ralph-config.yml               # Installed project config
-├── ralph-config.template.yml      # Config template
-├── README.md
-├── CHANGELOG.md
-└── LICENSE                        # MIT
+|-- extension.yml
+|-- commands/
+|   |-- speckit-tasks-to-ralph.md
+|   `-- speckit-ralph-sync-back.md
+|-- scripts/bash/
+|   |-- tasks-to-prd.sh
+|   `-- sync-passes-to-tasks.sh
+|-- ralph.sh
+|-- ralph-config.yml
+|-- ralph-config.template.yml
+|-- build-extension.sh
+`-- README.md
 ```
+
+## Prerequisites
+
+- A Spec Kit project initialized with `specify init`.
+- A feature branch. `scripts/bash/tasks-to-prd.sh` refuses to run on
+  `main` or `master`.
+- A feature directory under `specs/` with a `tasks.md` file.
+- `git` and `jq` on `PATH`.
+- `claude` on `PATH`, because `extension.yml` declares it as required.
+- The selected loop tool installed and authenticated. `ralph.sh` supports
+  `claude`, `codex`, `amp`, `test-gpt5.5-codex`, and `ccs-bp`.
+
+Runtime prompt files are also required by the shell script:
+
+- `ralph.sh` reads `CLAUDE.md` from the installed extension directory for
+  `claude`, `codex`, `test-gpt5.5-codex`, and `ccs-bp`.
+- `ralph.sh` reads `prompt.md` from the installed extension directory for
+  `amp`.
+
+This checkout currently does not include `CLAUDE.md` or `prompt.md`. If those
+files are absent in the installed extension directory, the loop fails before it
+can start the selected agent CLI.
+
+## Install Into a Spec Kit Project
+
+From the target Spec Kit project, install this checkout as a local development
+extension:
+
+```bash
+specify extension add --dev /absolute/path/to/spec-kit-ralph --priority 10
+specify extension list
+```
+
+After installation, the extension files live under:
+
+```text
+.specify/extensions/ralph-loop/
+```
+
+This checkout also includes `build-extension.sh`, which stages a clean copy of
+the extension and installs or updates it in one or more local Spec Kit projects:
+
+```bash
+./build-extension.sh --repo /path/to/spec-kit-project
+./build-extension.sh --dry-run --repo /path/to/spec-kit-project
+```
+
+If no repo is passed, the script uses the default repo hardcoded in
+`build-extension.sh`.
+
+## End-to-End Use
+
+Run these commands from the target Spec Kit project, not from this extension
+source directory.
+
+### 1. Prepare Ralph Artifacts
+
+Use the Spec Kit command:
+
+```text
+/speckit.ralph-loop.tasks-to-ralph <feature-dir-or-prefix>
+```
+
+Or call the script directly:
+
+```bash
+bash .specify/extensions/ralph-loop/scripts/bash/tasks-to-prd.sh <feature-dir-or-prefix>
+```
+
+The feature argument can be a full directory name such as
+`004-sessions-memory-auth` or a unique prefix such as `004`. If no feature is
+passed, the command and script try to read `feature_directory` from
+`.specify/feature.json`.
+
+This step:
+
+- Resolves exactly one matching `specs/<feature>*` directory.
+- Reads unchecked task lines matching `- [ ] TNNN ...`.
+- Groups tasks by `## Phase N: ...` and, when present, `### ...`
+  subsections.
+- Writes `specs/<feature>/prd.json`.
+- Writes `specs/<feature>/progress.txt`.
+- Updates `.specify/feature.json` with `ralph_prd_file` and
+  `ralph_progress_file` when that file exists.
+- Does not edit `tasks.md`.
+
+### 2. Run the External Loop
+
+Run `ralph.sh` from a separate terminal in the target Spec Kit project:
+
+```bash
+RALPH_I_UNDERSTAND_DANGEROUS=1 bash .specify/extensions/ralph-loop/ralph.sh 50
+```
+
+The numeric argument is the maximum iteration count. If omitted, `ralph.sh`
+uses `max_iterations` from `ralph-config.yml`.
+
+Override the configured tool with `--tool`:
+
+```bash
+RALPH_I_UNDERSTAND_DANGEROUS=1 bash .specify/extensions/ralph-loop/ralph.sh --tool claude 50
+RALPH_I_UNDERSTAND_DANGEROUS=1 bash .specify/extensions/ralph-loop/ralph.sh --tool codex 50
+```
+
+The script requires an explicit danger consent because it runs the selected
+agent with permission bypass flags. Any one of these consent paths works:
+
+```bash
+export RALPH_I_UNDERSTAND_DANGEROUS=1
+touch .specify/extensions/ralph-loop/.consent
+```
+
+Or set this in `.specify/extensions/ralph-loop/ralph-config.yml`:
+
+```yaml
+ralph_i_understand_dangerous: 1
+```
+
+During the loop, `ralph.sh` resolves `prd.json` and `progress.txt` in this
+order:
+
+1. `RALPH_PRD_FILE` and `RALPH_PROGRESS_FILE` environment variables.
+2. `.specify/feature.json` keys written by `tasks-to-prd.sh`.
+3. Legacy fallback files next to `ralph.sh`.
+
+The loop exits successfully when every batch has `completed:true`, every nested
+task has `passes:true`, or the agent emits a standalone
+`<promise>COMPLETE</promise>` line near the end of its output.
+
+### 3. Sync Results Back to Spec Kit
+
+After `ralph.sh` exits, run:
+
+```text
+/speckit.ralph-loop.sync-back <feature-dir-or-prefix>
+```
+
+Or call the script directly:
+
+```bash
+bash .specify/extensions/ralph-loop/scripts/bash/sync-passes-to-tasks.sh <feature-dir-or-prefix>
+```
+
+This step:
+
+- Reads `specs/<feature>/prd.json`.
+- Finds nested tasks with `passes:true`.
+- Flips matching `- [ ] TNNN` lines to `- [X] TNNN` in `tasks.md`.
+- Leaves unmatched IDs as warnings.
+- Archives `prd.json` and `progress.txt` under
+  `specs/<feature>/archive/<UTC timestamp>/`.
+
+## Configuration
+
+The active config file is installed at:
+
+```text
+.specify/extensions/ralph-loop/ralph-config.yml
+```
+
+Current config keys:
+
+```yaml
+max_iterations: 100
+tool: codex
+model: gpt-5.3-codex
+reasoning_effort: xhigh
+ralph_i_understand_dangerous: 1
+```
+
+`ralph.sh` requires `tool`, `model`, and `reasoning_effort` to be set before it
+runs. In the current script, the CLI can override only:
+
+- `tool`, with `--tool <name>` or `--tool=<name>`.
+- `max_iterations`, with a positional number such as `50`.
+
+## Task Format Expected by the Converter
+
+`tasks-to-prd.sh` only converts unchecked Spec Kit task lines with `TNNN`
+identifiers:
+
+```markdown
+## Phase 1: Build foundation
+
+- [ ] T001 Create the shared module
+- [ ] T002 [P] Add tests for the shared module
+- [X] T003 Already completed tasks are skipped
+
+### API
+
+- [ ] T004 Implement the endpoint
+```
+
+Completed `[X]` tasks are skipped when generating `prd.json`.
+
+## Development Checks
+
+The checked shell scripts can be syntax-checked without starting the loop:
+
+```bash
+for file in ralph.sh scripts/bash/*.sh; do
+  bash -n "$file"
+done
+```
+
+Do not use the old README commands such as `/speckit.ralph.run`,
+`.specify/extensions/ralph/scripts/...`, or `SPECKIT_RALPH_*` environment
+variables. Those names are not present in the current source tree.
 
 ## License
 
-[MIT](LICENSE) © Rubiss
+[MIT](LICENSE)

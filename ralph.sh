@@ -100,7 +100,7 @@ fi
 # Resolution precedence:
 #   1. $RALPH_PRD_FILE / $RALPH_PROGRESS_FILE   (env override — wins for tests + ad-hoc runs)
 #   2. .specify/feature.json → ralph_prd_file / ralph_progress_file
-#      (set by /speckit-tasks-to-ralph; relative paths resolve against repo root)
+#      (set by /speckit.ralph-loop.tasks-to-ralph; relative paths resolve against repo root)
 #   3. $SCRIPT_DIR/prd.json / progress.txt      (legacy fallback)
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 FEATURE_JSON="$REPO_ROOT/.specify/feature.json"
