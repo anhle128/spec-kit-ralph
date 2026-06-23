@@ -62,7 +62,7 @@ The PRD groups tasks into **batches** (`userStories[]`).
     - Invoke the `speckit-git-commit` skill with event `after_implement` (runs `.specify/extensions/git/scripts/bash/auto-commit.sh after_implement`). The skill stages all changes (`git add .`) and commits with the configured message — covering all task changes + the PRD edits + the progress.txt append in one commit.
     - The commit MUST include the staged PRD update (`passes:true` flips, optional `completed:true` flip) and the progress.txt append.
     - Do NOT run raw `git commit -m ...` — always go through `speckit-git-commit`.
-13. Update CLAUDE.md files if you discovered reusable patterns (see below).
+13. Update LESSIONS.md files if you discovered reusable patterns (see below).
 
 ## Parallel Task Execution
 
@@ -176,12 +176,12 @@ If you discover a **reusable pattern** that future iterations should know, add i
 
 Only add patterns that are **general and reusable**, not story-specific details.
 
-## Update CLAUDE.md Files
+## Update LESSIONS.md Files
 
-Before committing, check if any edited files have learnings worth preserving in nearby CLAUDE.md files:
+Before committing, check if any edited files have learnings worth preserving in nearby LESSIONS.md files:
 
 1. **Identify directories with edited files** - Look at which directories you modified
-2. **Check for existing CLAUDE.md** - Look for CLAUDE.md in those directories or parent directories
+2. **Check for existing LESSIONS.md** - Look for LESSIONS.md in those directories or parent directories
 3. **Add valuable learnings** - If you discovered something future developers/agents should know:
    - API patterns or conventions specific to that module
    - Gotchas or non-obvious requirements
@@ -189,7 +189,7 @@ Before committing, check if any edited files have learnings worth preserving in 
    - Testing approaches for that area
    - Configuration or environment requirements
 
-**Examples of good CLAUDE.md additions:**
+**Examples of good LESSIONS.md additions:**
 - "When modifying X, also update Y to keep them in sync"
 - "This module uses pattern Z for all API calls"
 - "Tests require the dev server running on PORT 3000"
@@ -200,7 +200,7 @@ Before committing, check if any edited files have learnings worth preserving in 
 - Temporary debugging notes
 - Information already in `$RALPH_PROGRESS_FILE`
 
-Only update CLAUDE.md if you have **genuinely reusable knowledge** that would help future work in that directory.
+Only update LESSIONS.md if you have **genuinely reusable knowledge** that would help future work in that directory.
 
 ## Quality Requirements
 
